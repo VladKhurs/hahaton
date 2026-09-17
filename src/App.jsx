@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useFBX, useAnimations, Html } from '@react-three/drei';
+import { useFBX, useAnimations, useGLTF, useTexture, Html } from '@react-three/drei';
 import * as THREE from 'three';
 
 // 1. Персонаж из твоего FBX
@@ -26,69 +26,24 @@ function Interlocutor() {
 }
 
 // 2. Движение головой сидя за столом
+// 2. Движение головой (уменьшенные углы)
 function HeadControls() {
   useFrame((state) => {
-    const maxHorizontal = Math.PI / 4; // ~45 градусов
-    const maxVertical = Math.PI / 8;   // ~22 градуса
+    // ЗАДАЕМ УГЛЫ В ОБЫЧНЫХ ГРАДУСАХ:
+    const maxHorizontal = THREE.MathUtils.degToRad(20); // поворот влево-вправо всего на 20° (вместо 45°)
+    const maxVertical = THREE.MathUtils.degToRad(10);   // наклон вверх-вниз всего на 10° (вместо 22°)
 
     const targetY = -state.pointer.x * maxHorizontal;
     const targetX = state.pointer.y * maxVertical;
 
-    state.camera.rotation.y = THREE.MathUtils.lerp(state.camera.rotation.y, targetY, 0.05);
-    state.camera.rotation.x = THREE.MathUtils.lerp(state.camera.rotation.x, targetX, 0.05);
+    // Цифра 0.04 отвечает за плавность: чем меньше число, тем «тяжелее» и плавнее поворачивается шея
+    state.camera.rotation.y = THREE.MathUtils.lerp(state.camera.rotation.y, targetY, 0.04);
+    state.camera.rotation.x = THREE.MathUtils.lerp(state.camera.rotation.x, targetX, 0.04);
   });
 
   return null;
 }
 
-// 3. Светлый офис и деревянный стол
-function OfficeRoom() {
-  return (
-    <group position={[0, -0.7, -0.7]}>
-      {/* СТОЛЕШНИЦА (Цвет натурального дерева/дуба) */}
-      <mesh position={[0, 0.6, 0]}>
-        <boxGeometry args={[1.6, 0.05, 0.85]} />
-        <meshStandardMaterial color="#a77044" roughness={0.35} />
-      </mesh>
-
-      {/* Металлические ножки стола (черный лофт) */}
-      <mesh position={[-0.72, 0.28, 0.35]}>
-        <cylinderGeometry args={[0.02, 0.02, 0.6]} />
-        <meshStandardMaterial color="#222" metalness={0.7} />
-      </mesh>
-      <mesh position={[0.72, 0.28, 0.35]}>
-        <cylinderGeometry args={[0.02, 0.02, 0.6]} />
-        <meshStandardMaterial color="#222" metalness={0.7} />
-      </mesh>
-      <mesh position={[-0.72, 0.28, -0.35]}>
-        <cylinderGeometry args={[0.02, 0.02, 0.6]} />
-        <meshStandardMaterial color="#222" metalness={0.7} />
-      </mesh>
-      <mesh position={[0.72, 0.28, -0.35]}>
-        <cylinderGeometry args={[0.02, 0.02, 0.6]} />
-        <meshStandardMaterial color="#222" metalness={0.7} />
-      </mesh>
-
-      {/* СВЕТЛЫЙ ПОЛ ОФИСА (ламинат) */}
-      <mesh position={[0, -0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[20, 20]} />
-        <meshStandardMaterial color="#d4cdc5" roughness={0.6} />
-      </mesh>
-
-      {/* ЗАДНЯЯ СТЕНА ОФИСА (за спиной собеседника) */}
-      <mesh position={[0, 1.8, -2.5]}>
-        <planeGeometry args={[20, 5]} />
-        <meshStandardMaterial color="#e5e7eb" roughness={0.9} />
-      </mesh>
-
-      {/* Плинтус на стене */}
-      <mesh position={[0, 0.05, -2.48]}>
-        <boxGeometry args={[20, 0.1, 0.02]} />
-        <meshStandardMaterial color="#8a5a36" />
-      </mesh>
-    </group>
-  );
-}
 
 // 4. Главный компонент
 export default function App() {
@@ -112,6 +67,8 @@ export default function App() {
         <OfficeRoom />
 
         <Suspense fallback={<Html center><div style={{ color: '#333', fontFamily: 'sans-serif' }}>Загрузка...</div></Html>}>
+          <BackgroundWall />
+          <CustomDesk />
           <Interlocutor />
         </Suspense>
       </Canvas>
@@ -167,3 +124,69 @@ const btnStyle = {
   boxShadow: '0 4px 15px rgba(0, 0, 0, 0.15)',
   transition: 'transform 0.1s ease',
 };
+
+
+// Твой кастомный стол из table.glb
+function CustomDesk() {
+  const { scene } = useGLTF('/table.glb');
+
+  return (
+    <primitive 
+      object={scene} 
+      position={[1.4, -0.7, -0.7]} // Координаты стола перед камерой
+      scale={8}                  // Если стол окажется слишком большим/маленьким, измени эту цифру (например, 0.8 или 1.2)
+      rotation={[0, Math.PI / 2, 0]}       // Если стол стоит боком, можно повернуть: [0, Math.PI / 2, 0]
+    />
+  );
+}
+
+// Светлые стены и пол офиса
+function OfficeRoom() {
+  return (
+    <group position={[0, -0.7, -0.7]}>
+      {/* Светлый пол */}
+      <mesh position={[0, -0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[20, 20]} />
+        <meshStandardMaterial color="#d4cdc5" roughness={0.6} />
+      </mesh>
+
+      {/* Светлая стена за собеседником
+      <mesh position={[0, 1.8, -2.5]}>
+        <planeGeometry args={[20, 5]} />
+        <meshStandardMaterial color="#e5e7eb" roughness={0.9} />
+      </mesh> */}
+
+      {/* Плинтус
+      <mesh position={[0, 0.05, -2.48]}>
+        <boxGeometry args={[20, 0.1, 0.02]} />
+        <meshStandardMaterial color="#8a5a36" />
+      </mesh> */}
+    </group>
+  );
+}
+
+// Стена с картинкой на фоне
+function BackgroundWall() {
+  // Загружаем текстуру из папки public/
+  const texture = useTexture('/wall.webp');
+
+  return (
+    // position: [0, высота, расстояние_назад]
+    <mesh position={[0, 1.8, -3.5]}>
+      {/* 
+        args={[Ширина, Высота]} 
+        Если картинка стандартная 16:9, поставь, например, [16, 9] или [12, 6.75]
+      */}
+      <planeGeometry args={[16, 9]} />
+
+      {/* 
+        Используем meshBasicMaterial, чтобы свет сцены не затемнял картинку 
+        и она оставалась яркой и четкой 
+      */}
+      <meshBasicMaterial map={texture} />
+    </mesh>
+  );
+}
+
+useGLTF.preload('/table.glb');
+useTexture.preload('/wall.webp');
